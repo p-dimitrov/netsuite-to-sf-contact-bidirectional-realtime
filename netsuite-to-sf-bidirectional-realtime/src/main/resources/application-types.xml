@@ -1,0 +1,17 @@
+<?xml version='1.0' encoding='UTF-8'?>
+<types:mule xmlns:types="http://www.mulesoft.org/schema/mule/types">
+  <types:catalog>
+    <types:type name="customer" format="xml">
+      <types:example format="xml" element="{urn:core.platform.webservices.netsuite.com}record" location="modified_object.xml"/>
+    </types:type>
+  </types:catalog>
+  <types:enrichment select="#845cf8b7-0d41-47fa-948d-f0aec26b526b">
+    <types:processor-declaration>
+      <types:input-event>
+        <types:message>
+          <types:payload type="customer"/>
+        </types:message>
+      </types:input-event>
+    </types:processor-declaration>
+  </types:enrichment>
+</types:mule>

@@ -1,0 +1,11 @@
+netsuite:
+  consumerKey: ""
+  consumerSecret: ""
+  tokenId: ""
+  tokenSecret: ""
+  accountId: ""
+  signatureAlgorithm: "" 
+
+sfdc:
+  username: ""
+  password: ""

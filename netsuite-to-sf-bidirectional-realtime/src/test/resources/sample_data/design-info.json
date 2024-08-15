@@ -1,0 +1,13 @@
+{
+  "sampleData": {
+    "4c5b8cb3-c799-42e9-a87b-44698e367715": {
+      "vars-internalId": "sample_data/java_1.dwl"
+    },
+    "36c1662d-8f2e-4af7-9395-f2f8e4bced95": {
+      "vars-internalId": "sample_data/java.dwl"
+    },
+    "f655b528-fd0a-4157-af0d-d82f560cc211": {
+      "payload": "sample_data/getresponse.xml"
+    }
+  }
+}

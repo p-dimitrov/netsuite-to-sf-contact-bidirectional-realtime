@@ -1,0 +1,85 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<mule xmlns:salesforce="http://www.mulesoft.org/schema/mule/salesforce" xmlns:file="http://www.mulesoft.org/schema/mule/file"
+	xmlns:ee="http://www.mulesoft.org/schema/mule/ee/core"
+	xmlns:netsuite="http://www.mulesoft.org/schema/mule/netsuite" xmlns:http="http://www.mulesoft.org/schema/mule/http" xmlns="http://www.mulesoft.org/schema/mule/core" xmlns:doc="http://www.mulesoft.org/schema/mule/documentation" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://www.mulesoft.org/schema/mule/core http://www.mulesoft.org/schema/mule/core/current/mule.xsd
+http://www.mulesoft.org/schema/mule/http http://www.mulesoft.org/schema/mule/http/current/mule-http.xsd
+http://www.mulesoft.org/schema/mule/netsuite http://www.mulesoft.org/schema/mule/netsuite/current/mule-netsuite.xsd
+http://www.mulesoft.org/schema/mule/ee/core http://www.mulesoft.org/schema/mule/ee/core/current/mule-ee.xsd
+http://www.mulesoft.org/schema/mule/file http://www.mulesoft.org/schema/mule/file/current/mule-file.xsd
+http://www.mulesoft.org/schema/mule/salesforce http://www.mulesoft.org/schema/mule/salesforce/current/mule-salesforce.xsd">
+	
+	<netsuite:config name="NetSuite_Config" doc:name="NetSuite Config" doc:id="8a21cc68-d758-4431-bf50-b95496522741" >
+		<netsuite:token-based-authentication-connection consumerKey="${netsuite.consumerKey}" consumerSecret="${netsuite.consumerSecret}" tokenId="${netsuite.tokenId}" tokenSecret="${netsuite.tokenSecret}" account="${netsuite.accountId}" wsdlVersion="V2021_1" signatureAlgorithm="${netsuite.signatureAlgorithm}"/>
+	</netsuite:config>
+	<configuration-properties doc:name="Configuration properties" doc:id="7fe60627-c3cb-42f7-a11f-14ad302a1c18" file="config-local.yaml" />
+	
+	<http:listener-config name="HTTP_Listener_config" doc:name="HTTP Listener config" doc:id="1e8cd8fe-567b-4571-9014-2e5fe5efb85f" >
+		<http:listener-connection host="0.0.0.0" port="8081" />
+	</http:listener-config>
+	<salesforce:sfdc-config name="Salesforce_Config" doc:name="Salesforce Config" doc:id="312681e1-7524-4377-8d04-4c56714a8ccf" >
+		<salesforce:basic-connection username="${sfdc.username}" password="${sfdc.password}" />
+	</salesforce:sfdc-config>
+	<flow name="create-netsuite-contact-to-sf-contact" doc:id="2e41f5c9-d7c5-40fe-8c71-44d266bf46b4">
+		<netsuite:new-object-listener objectType="ContactSearchBasic" doc:name="On New Object" doc:id="54087404-6901-4d39-8584-0b8c32dee9f2" config-ref="NetSuite_Config">
+			<scheduling-strategy>
+				<fixed-frequency frequency="5000"/>
+			</scheduling-strategy>
+		</netsuite:new-object-listener>
+		<ee:transform doc:name="Map Netsuite Fields" doc:id="6b8fd3c3-9993-41dc-bdf7-ba085d8ce6b6">
+			<ee:message>
+				<ee:set-payload><![CDATA[%dw 2.0
+output application/json
+---
+{
+	internalId: payload.record.@internalId,
+	firstName: payload.record.firstName,
+	lastName: payload.record.lastName,
+	email: payload.record.email
+}]]></ee:set-payload>
+			</ee:message>
+		</ee:transform>
+		<set-variable value="#[payload.internalId]" doc:name="Set Netsuite InternalID" doc:id="b9458bb1-7bba-4500-9339-ee19d3ff5a50" variableName="internalId" />
+		<ee:transform doc:name="Map to SF" doc:id="ce97e398-49ee-4f7a-a746-ff1fbf851fce">
+			<ee:message>
+				<ee:set-payload><![CDATA[%dw 2.0
+output application/java
+ns ns0 urn:messages.platform.webservices.netsuite.com
+ns ns01 urn:relationships.lists.webservices.netsuite.com
+---
+[{
+	LastName: payload.lastName,
+	FirstName: payload.firstName,
+	Email: payload.email,
+	netsuite_id__c: vars.internalId as String
+}]]]></ee:set-payload>
+			</ee:message>
+		</ee:transform>
+		<salesforce:upsert objectType="Contact" externalIdFieldName="Email" doc:name="Upsert" doc:id="45b0b80b-25e6-4b2d-a6d1-734a4298aba8" config-ref="Salesforce_Config" />
+	</flow>
+	<flow name="update-sf-contact-to-netsuite-contact" doc:id="69290a6b-2879-42d4-b08b-24845af6272e" >
+		<salesforce:modified-object-listener objectType="Contact" doc:name="On Modified Object" doc:id="76923e6c-ac9b-4412-89c9-684b2118c84f" config-ref="Salesforce_Config">
+			<scheduling-strategy >
+				<fixed-frequency frequency="10000"/>
+			</scheduling-strategy>
+		</salesforce:modified-object-listener>
+		<ee:transform doc:name="Map to Netsuite Contact Object" doc:id="5cd976f9-d7ef-4de6-b346-ac448cebc254">
+			<ee:message>
+				<ee:set-payload><![CDATA[%dw 2.0
+output application/xml
+ns ns0 urn:messages.platform.webservices.netsuite.com
+ns ns01 urn:relationships.lists.webservices.netsuite.com
+ns ns02 urn:core.platform.webservices.netsuite.com
+---
+{
+	ns0#update: {
+		ns0#record @("xmlns:ns01": ns01, xsi#"type": "ns01:Contact", internalId: payload.netsuite_id__c): {
+			ns01#email: payload.Email
+		}
+	}
+}]]></ee:set-payload>
+			</ee:message>
+		</ee:transform>
+		<netsuite:update doc:name="Update" doc:id="0d20cd2a-a693-4eb7-b79b-b3194721ae6c" config-ref="NetSuite_Config" type="Contact" />
+	</flow>
+</mule>
